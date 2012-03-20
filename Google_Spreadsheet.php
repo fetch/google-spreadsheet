@@ -3,6 +3,8 @@
 /*
 
 Copyright (c) 2009 Dimas Begunoff, http://www.farinspace.com/
+Copyright (c) 2012 Koen Punt, Fetch! http://www.fetch.nl 
+
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -38,13 +40,13 @@ class Google_Spreadsheet{
 		$_worksheet = 'Sheet1',
 		$_worksheet_id;
 
-	public function __construct($user=null, $pass=null, $ss=null, $ws=null){
+	public function __construct($user = null, $pass = null, $ss = null, $ws = null){
 		if (!is_null($user) && !is_null($pass)) $this->login($user, $pass);
 		if (!is_null($ss)) $this->useSpreadsheet($ss);
 		if (!is_null($ws)) $this->useWorksheet($ws);
 	}
 	
-	public function useSpreadsheet($ss, $ws=null){
+	public function useSpreadsheet($ss, $ws = null){
 		$this->setSpreadsheetId(null);
 		$this->_spreadsheet = $ss;
 		if (!is_null($ws)) $this->useWorksheet($ws);
@@ -118,7 +120,7 @@ class Google_Spreadsheet{
 	}
 
 	// http://code.google.com/apis/spreadsheets/docs/2.0/reference.html#ListParameters
-	function getRows($search=false){
+	function getRows($search = null){
 		$rows = array();
 		
 		if ($this->_client instanceof Zend_Gdata_Spreadsheets){
@@ -209,7 +211,7 @@ class Google_Spreadsheet{
 		throw new Google_Spreadsheet_Exception('Login failed, incorrect credentials?');
 	}
 
-	private function _findRows($search=false){
+	private function _findRows($search = null){
 		$query = new Zend_Gdata_Spreadsheets_ListQuery();
 		$query->setSpreadsheetKey($this->_getSpreadsheetId());
 		$query->setWorksheetId($this->_getWorksheetId());
