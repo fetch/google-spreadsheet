@@ -25,180 +25,161 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
-class Google_Spreadsheet
-{
-	private $client;
+class Google_Spreadsheet_Exception extends Exception{
+	
+}
 
-	private $spreadsheet;
-	private $spreadsheet_id;
+class Google_Spreadsheet{
+	
+	protected 
+		$_client,
+		$_spreadsheet = null,
+		$_spreadsheet_id = null,
+		$_worksheet = 'Sheet1',
+		$_worksheet_id;
 
-	private $worksheet = "Sheet1";
-	private $worksheet_id;
-
-	function __construct($user,$pass,$ss=FALSE,$ws=FALSE)
-	{
-		$this->login($user,$pass);
-		if ($ss) $this->useSpreadsheet($ss);
-		if ($ws) $this->useWorksheet($ws);
+	public function __construct($user=null, $pass=null, $ss=null, $ws=null){
+		if (!is_null($user) && !is_null($pass)) $this->login($user, $pass);
+		if (!is_null($ss)) $this->useSpreadsheet($ss);
+		if (!is_null($ws)) $this->useWorksheet($ws);
+	}
+	
+	public function useSpreadsheet($ss, $ws=null){
+		$this->setSpreadsheetId(null);
+		$this->_spreadsheet = $ss;
+		if (!is_null($ws)) $this->useWorksheet($ws);
+	}
+	
+	public function setSpreadsheetId($id){
+		$this->_spreadsheet_id = $id;
 	}
 
-	function useSpreadsheet($ss,$ws=FALSE)
-	{
-		$this->spreadsheet = $ss;
-		$this->spreadsheet_id = NULL;
-		if ($ws) $this->useWorksheet($ws);
+	public function useWorksheet($ws){
+		$this->_worksheet = $ws;
+		$this->setWorksheetId(null);
 	}
 
-	function useWorksheet($ws)
-	{
-		$this->worksheet = $ws;
-		$this->worksheet_id = NULL;
+	public function setWorksheetId($id){
+		$this->_worksheet_id = $id;
 	}
-
-	function addRow($row)
-	{
-		if ($this->client instanceof Zend_Gdata_Spreadsheets)
-		{
-			$ss_id = $this->getSpreadsheetId($this->spreadsheet);
-
-			if (!$ss_id) throw new Exception('Unable to find spreadsheet by name: "' . $this->spreadsheet . '", confirm the name of the spreadsheet');
-
-			$ws_id = $this->getWorksheetId($ss_id,$this->worksheet);
-
-			if (!$ws_id) throw new Exception('Unable to find worksheet by name: "' . $this->worksheet . '", confirm the name of the worksheet');
-
+	
+	public function addRow($row){
+		
+		if ($this->_client instanceof Zend_Gdata_Spreadsheets){
+			
+			$ss_id = $this->_getSpreadsheetId($this->_spreadsheet);
+			
+			$ws_id = $this->_getWorksheetId($ss_id, $this->_worksheet);
+			
 			$insert_row = array();
-
-			foreach ($row as $k => $v) $insert_row[$this->cleanKey($k)] = $v;
-
-			$entry = $this->client->insertRow($insert_row,$ss_id,$ws_id);
-
-			if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry) return TRUE;
+			
+			foreach ($row as $k => $v) $insert_row[$this->_cleanKey($k)] = $v;
+			
+			$entry = $this->_client->insertRow($insert_row, $ss_id, $ws_id);
+			
+			if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry) return true;
 		}
-
-		throw new Exception('Unable to add row to the spreadsheet');
+		
+		throw new Google_Spreadsheet_Exception('Unable to add row to the spreadsheet');
 	}
 
 	// http://code.google.com/apis/spreadsheets/docs/2.0/reference.html#ListParameters
-	function updateRow($row,$search)
-	{
-		if ($this->client instanceof Zend_Gdata_Spreadsheets AND $search)
-		{
-			$feed = $this->findRows($search);
+	public function updateRow($row, $search){
+		if ($this->_client instanceof Zend_Gdata_Spreadsheets AND $search){
+			$feed = $this->_findRows($search);
 			
-			if ($feed->entries)
-			{
-				foreach($feed->entries as $entry) 
-				{
-					if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)
-					{
+			if ($feed->entries){
+				foreach($feed->entries as $entry){
+					
+					if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry){
 						$update_row = array();
-
+						
 						$customRow = $entry->getCustom();
-						foreach ($customRow as $customCol) 
-						{
+						foreach ($customRow as $customCol){
 							$update_row[$customCol->getColumnName()] = $customCol->getText();
 						}
-			
+						
 						// overwrite with new values
-						foreach ($row as $k => $v) 
-						{
-							$update_row[$this->cleanKey($k)] = $v;
+						foreach ($row as $k => $v){
+							$update_row[$this->_cleanKey($k)] = $v;
 						}
-
+						
 						// update row data, then save
-						$entry = $this->client->updateRow($entry,$update_row);
-						if ( ! ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)) return FALSE;
+						$entry = $this->_client->updateRow($entry, $update_row);
+						if ( ! ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)) return false;
 					}
 				}
-
-				return TRUE;
+				
+				return true;
 			}
 		}
-
-		return FALSE;
+		
+		return false;
 	}
 
 	// http://code.google.com/apis/spreadsheets/docs/2.0/reference.html#ListParameters
-	function getRows($search=FALSE)
-	{
+	function getRows($search=false){
 		$rows = array();
 		
-		if ($this->client instanceof Zend_Gdata_Spreadsheets)
-		{
-			$feed = $this->findRows($search);
+		if ($this->_client instanceof Zend_Gdata_Spreadsheets){
+			$feed = $this->_findRows($search);
 			
-			if ($feed->entries)
-			{
-				foreach($feed->entries as $entry) 
-				{
-					if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)
-					{
+			if ($feed->entries){
+				foreach($feed->entries as $entry){
+					if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry){
 						$row = array();
 						
 						$customRow = $entry->getCustom();
-						foreach ($customRow as $customCol) 
-						{
+						foreach ($customRow as $customCol){
 							$row[$customCol->getColumnName()] = $customCol->getText();
 						}
-
+						
 						$rows[] = $row;
 					}
 				}
 			}
 		}
-
+		
 		return $rows;
 	}
 
 	// user contribution by dmon (6/10/2009)
-	function deleteRow($search)
-	{
-		if ($this->client instanceof Zend_Gdata_Spreadsheets AND $search)
-		{
-			$feed = $this->findRows($search);
+	public function deleteRow($search){
+		if ($this->_client instanceof Zend_Gdata_Spreadsheets AND $search){
+			$feed = $this->_findRows($search);
 			
-			if ($feed->entries)
-			{
-				foreach($feed->entries as $entry)
-				{
-					if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)
-					{
-						$this->client->deleteRow($entry);
+			if ($feed->entries){
+				foreach($feed->entries as $entry){
+					
+					if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry){
+						$this->_client->deleteRow($entry);
 						
-						if ( ! ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)) return FALSE;
+						if ( ! ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)) return false;
 					}
 				}
-
-				return TRUE;
+				return true;
 			}
 		}
-
-		return FALSE;
+		return false;
 	}
 
-	function getColumnNames()
-	{
+	public function getColumnNames(){
 		$query = new Zend_Gdata_Spreadsheets_ListQuery();
-		$query->setSpreadsheetKey($this->getSpreadsheetId());
-		$query->setWorksheetId($this->getWorksheetId());
+		$query->setSpreadsheetKey($this->_getSpreadsheetId());
+		$query->setWorksheetId($this->_getWorksheetId());
 		$query->setMaxResults(1);
 		$query->setStartIndex(1);
-
-		$feed = $this->client->getListFeed($query);
-
+		
+		$feed = $this->_client->getListFeed($query);
+		
 		$data = array();
-
-		if ($feed->entries)
-		{
-			foreach($feed->entries as $entry) 
-			{
-				if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry)
-				{
+		
+		if ($feed->entries){
+			foreach($feed->entries as $entry){
+				if ($entry instanceof Zend_Gdata_Spreadsheets_ListEntry){
 					$customRow = $entry->getCustom();
-
-					foreach ($customRow as $customCol) 
-					{
+					
+					foreach ($customRow as $customCol){
 						array_push($data,$customCol->getColumnName());
 					}
 				}
@@ -208,8 +189,7 @@ class Google_Spreadsheet
 		return $data;
 	}
 
-	private function login($user,$pass)
-	{
+	public function login($user, $pass){
 		// Zend Gdata package required
 		// http://framework.zend.com/download/gdata
 		
@@ -218,88 +198,95 @@ class Google_Spreadsheet
 		Zend_Loader::loadClass('Zend_Gdata');
 		Zend_Loader::loadClass('Zend_Gdata_ClientLogin');
 		Zend_Loader::loadClass('Zend_Gdata_Spreadsheets');
-
+		
 		$service = Zend_Gdata_Spreadsheets::AUTH_SERVICE_NAME;
-		$http = Zend_Gdata_ClientLogin::getHttpClient($user,$pass,$service);
-		$this->client = new Zend_Gdata_Spreadsheets($http);
-
-		if ($this->client instanceof Zend_Gdata_Spreadsheets) return TRUE;
-
-		return FALSE;
+		$http = Zend_Gdata_ClientLogin::getHttpClient($user, $pass, $service);
+		
+		$this->_client = new Zend_Gdata_Spreadsheets($http);
+		
+		if ($this->_client instanceof Zend_Gdata_Spreadsheets) return true;
+		
+		throw new Google_Spreadsheet_Exception('Login failed, incorrect credentials?');
 	}
 
-	private function findRows($search=FALSE)
-	{
+	private function _findRows($search=false){
 		$query = new Zend_Gdata_Spreadsheets_ListQuery();
-		$query->setSpreadsheetKey($this->getSpreadsheetId());
-		$query->setWorksheetId($this->getWorksheetId());
-
+		$query->setSpreadsheetKey($this->_getSpreadsheetId());
+		$query->setWorksheetId($this->_getWorksheetId());
+		
 		if ($search) $query->setSpreadsheetQuery($search);
-
-		$feed = $this->client->getListFeed($query);
-
+		
+		$feed = $this->_client->getListFeed($query);
+		
 		return $feed;
 	}
 
-	private function getSpreadsheetId($ss=FALSE)
-	{
-		if ($this->spreadsheet_id) return $this->spreadsheet_id;
-
-		$ss = $ss?$ss:$this->spreadsheet;
+	/**
+	 * Lookup spreadsheet id, if $this->_spreadsheet_id is already set return $this->_spreadsheet_id
+	 *
+	 * @param string $ss 
+	 * @return string $ss_id
+	 * @author Koen Punt
+	 */
+	private function _getSpreadsheetId($ss = null){
+		if ($this->_spreadsheet_id) return $this->_spreadsheet_id;
 		
-		$ss_id = FALSE;
+		$ss = is_null($ss) ? $this->_spreadsheet : $ss;
 		
-		$feed = $this->client->getSpreadsheetFeed();
-
-		foreach($feed->entries as $entry) 
-		{
-			if ($entry->title->text == $ss)
-			{
-				$ss_id = array_pop(explode("/",$entry->id->text));
-
-				$this->spreadsheet_id = $ss_id;
-
+		$ss_id = false;
+		
+		$feed = $this->_client->getSpreadsheetFeed();
+		
+		foreach($feed->entries as $entry){
+			if ($entry->title->text == $ss){
+				$ss_id = array_pop(explode("/", $entry->id->text));
+				
+				$this->_spreadsheet_id = $ss_id;
+				
 				break;
 			}
 		}
-
+		if (!$ss_id) throw new Google_Spreadsheet_Exception('Unable to find spreadsheet by name: "' . $this->_spreadsheet . '", confirm the name of the spreadsheet');
 		return $ss_id;
 	}
 
-	private function getWorksheetId($ss_id=FALSE,$ws=FALSE)
-	{
-		if ($this->worksheet_id) return $this->worksheet_id;
-
-		$ss_id = $ss_id?$ss_id:$this->spreadsheet_id;
-
-		$ws = $ws?$ws:$this->worksheet;
-
-		$wk_id = FALSE;
-
-		if ($ss_id AND $ws)
-		{
+	/**
+	 * Lookup worksheet id, if $this->_worksheet_id is already set return $this->_worksheet_id
+	 *
+	 * @param string $ss 
+	 * @param string $ws 
+	 * @return string $ws_id
+	 * @author Koen Punt
+	 */
+	private function _getWorksheetId($ss_id = null, $ws = null){
+		if ($this->_worksheet_id) return $this->_worksheet_id;
+		
+		$ss_id = is_null($ss_id) ? $this->_spreadsheet_id : $ss_id;
+		
+		$ws = is_null($ws) ? $this->_worksheet : $ws;
+		
+		$ws_id = false;
+		
+		if ($ss_id and $ws){
 			$query = new Zend_Gdata_Spreadsheets_DocumentQuery();
-			$query->setSpreadsheetKey($ss_id);
-			$feed = $this->client->getWorksheetFeed($query);
-
-			foreach($feed->entries as $entry) 
-			{
-				if ($entry->title->text == $ws)
-				{
-					$wk_id = array_pop(explode("/",$entry->id->text));
-
-					$this->worksheet_id = $wk_id;
-
+			$query->setSpreadsheetKey( $ss_id );
+			$feed = $this->_client->getWorksheetFeed( $query );
+			
+			foreach($feed->entries as $entry){
+				if ($entry->title->text == $ws){
+					$ws_id = array_pop(explode("/", $entry->id->text));
+					
+					$this->_worksheet_id = $ws_id;
+					
 					break;
 				}
 			}
 		}
-
-		return $wk_id;
+		if (!$ws_id) throw new Google_Spreadsheet_Exception('Unable to find worksheet by name: "' . $this->_worksheet . '", confirm the name of the worksheet');
+		return $ws_id;
 	}
 
-	function cleanKey($k)
-	{
+	private function _cleanKey($k){
 		return strtolower(preg_replace('/[^A-Za-z0-9\-\.]+/','',$k));
 	}
 }
